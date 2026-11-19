@@ -1,0 +1,37 @@
+# Quick start:  WARDEN_ENROLLMENT_PASSWORD=change-me docker compose up -d --build
+# Dashboard:    https://localhost:55000  (user admin, password from WARDEN_ADMIN_PASSWORD)
+services:
+  manager:
+    build: {context: ., dockerfile: deploy/Dockerfile.manager}
+    image: warden-xdr/manager
+    restart: unless-stopped
+    environment:
+      WARDEN_ENROLLMENT_PASSWORD: ${WARDEN_ENROLLMENT_PASSWORD:?set WARDEN_ENROLLMENT_PASSWORD}
+      WARDEN_ADMIN_PASSWORD: ${WARDEN_ADMIN_PASSWORD:-ChangeMe!2026}
+    ports:
+      - "1514:1514"        # agents
+      - "55000:55000"      # dashboard + API
+      - "514:5514/udp"     # syslog from firewalls/routers
+    volumes:
+      - warden-data:/var/lib/warden
+
+  demo-agent:
+    build: {context: ., dockerfile: deploy/Dockerfile.demo-agent}
+    image: warden-xdr/demo-agent
+    hostname: demo-debian
+    restart: unless-stopped
+    cap_add: [NET_ADMIN]   # lets active response add nftables rules inside the container
+    depends_on: [manager]
+    environment:
+      WARDEN_MANAGER: manager:1514
+      WARDEN_ENROLLMENT_PASSWORD: ${WARDEN_ENROLLMENT_PASSWORD}
+      WARDEN_AGENT_NAME: demo-debian
+      WARDEN_STATE_DIR: /var/lib/warden-agent
+    ports:
+      - "2222:22"          # attack target: ssh -p 2222 root@localhost
+    volumes:
+      - demo-agent-state:/var/lib/warden-agent
+
+volumes:
+  warden-data:
+  demo-agent-state:

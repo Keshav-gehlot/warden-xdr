@@ -1,0 +1,15 @@
+listen_agents: ":1514"
+listen_api: ":55000"
+listen_syslog: ":5514"
+data_dir: /var/lib/warden
+ruleset_dir: /etc/warden/ruleset
+enrollment_password: ""        # set WARDEN_ENROLLMENT_PASSWORD in docker-compose / .env
+alert_level: 3
+retention: {alerts_days: 90, events_days: 7}
+active_response:
+  enabled: true
+  whitelist: [127.0.0.1, "::1"]
+vulnerability_detector:
+  interval_hours: 6
+  feeds: [/etc/warden/feeds/demo-feed.json]
+  osv_auto_sync: false

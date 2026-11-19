@@ -1,0 +1,43 @@
+# Authentication decoders: sshd, PAM, sudo, su, account management.
+# Decoders match on the syslog program name (pre-decoded) and/or a prematch
+# regex on the message. Every regex in the list that matches merges its named
+# groups into the event fields.
+
+- name: sshd
+  program: ^sshd$
+  regex:
+    - '^(?P<action>Failed|Accepted) (?P<auth_method>\S+) for (?:invalid user )?(?P<dstuser>\S+) from (?P<srcip>[0-9a-fA-F.:]+) port (?P<srcport>\d+)'
+    - '^Invalid user (?P<dstuser>\S*) from (?P<srcip>[0-9a-fA-F.:]+)'
+    - 'Did not receive identification string from (?P<srcip>[0-9a-fA-F.:]+)'
+    - '(?:Connection closed|Disconnected from)(?: invalid| authenticating)? user (?P<dstuser>\S+) (?P<srcip>[0-9a-fA-F.:]+) port (?P<srcport>\d+)'
+    - 'maximum authentication attempts exceeded for (?:invalid user )?(?P<dstuser>\S+) from (?P<srcip>[0-9a-fA-F.:]+)'
+    - 'Received disconnect from (?P<srcip>[0-9a-fA-F.:]+)'
+
+- name: sudo
+  program: ^sudo$
+  regex:
+    - '^\s*(?P<srcuser>\S+) : (?:(?P<status>.+?) ; )?TTY=(?P<tty>\S+) ; PWD=(?P<pwd>\S+) ; USER=(?P<dstuser>\S+) ; COMMAND=(?P<command>.+)$'
+    - 'pam_unix\(sudo:auth\): authentication failure;.* ruser=(?P<srcuser>\S*)'
+
+- name: su
+  program: ^su$
+  regex:
+    - "(?:FAILED SU|FAILED su|authentication failure).*?(?:\\(to (?P<dstuser>\\S+)\\) (?P<srcuser>\\S+)|user=(?P<dstuser2>\\S+))"
+    - '\(to (?P<dstuser>\S+)\) (?P<srcuser>\S+) on'
+    - 'session opened for user (?P<dstuser>\S+)(?:\(uid=\d+\))? by (?P<srcuser>\S+)'
+
+- name: account-mgmt
+  program: ^(useradd|userdel|groupadd|groupdel|usermod|passwd|chpasswd|adduser|deluser)$
+  regex:
+    - "new user: name=(?P<dstuser>[^,]+), UID=(?P<uid>\\d+)"
+    - "delete user '(?P<dstuser>[^']+)'"
+    - "new group: name=(?P<group>[^,]+)"
+    - "password (?:for '|changed for )(?P<dstuser>[^' ]+)"
+    - "add '(?P<dstuser>[^']+)' to group '(?P<group>[^']+)'"
+
+- name: pam
+  prematch: 'pam_unix\('
+  regex:
+    - 'pam_unix\((?P<service>[^:]+):(?P<pam_type>\w+)\): (?P<pam_event>session opened|session closed|authentication failure|check pass)'
+    - 'for user (?P<dstuser>[^\s(]+)'
+    - 'rhost=(?P<srcip>[0-9a-fA-F.:]+)'

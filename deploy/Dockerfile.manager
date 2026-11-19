@@ -1,0 +1,19 @@
+# warden-manager: cgo is needed for SQLite, so build on Debian and run on Debian slim.
+FROM golang:1.24-bookworm AS build
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+RUN CGO_ENABLED=1 go build -trimpath -ldflags="-s -w" -o /out/warden-manager ./cmd/warden-manager
+
+FROM debian:bookworm-slim
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/* \
+ && useradd -r -u 999 -d /var/lib/warden warden && mkdir -p /var/lib/warden /etc/warden && chown warden /var/lib/warden
+COPY --from=build /out/warden-manager /usr/local/bin/
+COPY --chown=warden ruleset /etc/warden/ruleset
+COPY feeds /etc/warden/feeds
+COPY deploy/docker/manager.yml /etc/warden/manager.yml
+USER warden
+VOLUME ["/var/lib/warden"]
+EXPOSE 1514 55000 5514/udp
+ENTRYPOINT ["warden-manager", "-c", "/etc/warden/manager.yml"]

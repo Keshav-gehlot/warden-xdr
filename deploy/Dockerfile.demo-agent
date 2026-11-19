@@ -1,0 +1,19 @@
+# A Debian 12 "victim" endpoint running sshd + rsyslog + warden-agent, used by
+# docker-compose to demo detections end to end. The agent itself is a static
+# binary and does not need any of this on a real host.
+FROM golang:1.24-bookworm AS build
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/warden-agent ./cmd/warden-agent
+
+FROM debian:bookworm-slim
+RUN apt-get update && apt-get install -y --no-install-recommends openssh-server rsyslog iproute2 nftables procps sudo curl \
+ && rm -rf /var/lib/apt/lists/* && mkdir -p /run/sshd \
+ && sed -i '/imklog/s/^/#/' /etc/rsyslog.conf
+COPY --from=build /out/warden-agent /usr/local/bin/
+COPY deploy/docker/demo-agent-entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+EXPOSE 22
+ENTRYPOINT ["/entrypoint.sh"]

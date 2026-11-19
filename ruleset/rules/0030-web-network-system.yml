@@ -1,0 +1,231 @@
+# Web server, firewall, auditd, systemd, cron and kernel rules.
+
+# ---------------- web access logs ----------------
+- id: 31100
+  level: 0
+  decoded_as: web-accesslog
+  description: Access log messages grouped
+  groups: [web, accesslog]
+
+- id: 31101
+  if_sid: [31100]
+  level: 5
+  field: {status: '^4\d\d$'}
+  description: 'Web server 400 error code'
+  groups: [web_error]
+
+- id: 31120
+  if_sid: [31100]
+  level: 5
+  field: {status: '^5\d\d$'}
+  description: 'Web server 500 error code (internal error)'
+  groups: [web_error]
+
+- id: 31103
+  if_sid: [31100, 31101, 31120]
+  level: 7
+  field: {url: "(?i)(union(\\s|\\+|%20)+select|select.+from|'(\\s|%20)*or(\\s|%20)*'?1'?=|sleep\\(|benchmark\\(|information_schema|%27|0x[0-9a-f]{8})"}
+  description: 'SQL injection attempt'
+  groups: [attack, sql_injection]
+  mitre: [T1190]
+  compliance: {pci_dss: ['6.5', '11.4', '6.5.1'], nist_800_53: ['SA.11', 'SI.4']}
+
+- id: 31104
+  if_sid: [31100, 31101, 31120]
+  level: 6
+  field: {url: '(?i)(<script|%3cscript|javascript:|onerror=|onload=|alert\()'}
+  description: 'Cross-site scripting (XSS) attempt'
+  groups: [attack, xss]
+  mitre: [T1190]
+  compliance: {pci_dss: ['6.5', '6.5.7'], nist_800_53: ['SA.11', 'SI.4']}
+
+- id: 31105
+  if_sid: [31100, 31101, 31120]
+  level: 7
+  field: {url: '(?i)(\.\./|\.\.%2f|%2e%2e/|/etc/passwd|/proc/self/environ|boot\.ini|win\.ini)'}
+  description: 'Path traversal / local file inclusion attempt'
+  groups: [attack]
+  mitre: [T1190]
+
+- id: 31106
+  if_sid: [31100, 31101, 31120]
+  level: 12
+  field: {url: '(?i)(cmd=|exec=|;(\s|%20)*(id|whoami|uname)|\|(\s|%20)*(id|whoami|cat)|\$\(|%24%28|/bin/(ba)?sh|c99\.php|r57\.php|shell\.php|wso\.php)'}
+  description: 'Command injection or web shell access attempt'
+  groups: [attack]
+  mitre: [T1190, T1505.003]
+
+- id: 31160
+  if_sid: [31100, 31101, 31120]
+  level: 6
+  field: {user_agent: '(?i)(nikto|sqlmap|nmap|masscan|dirbuster|gobuster|wpscan|nuclei|zgrab|acunetix|nessus|hydra)'}
+  description: 'Known web vulnerability scanner user agent'
+  groups: [recon, web_scan]
+  mitre: [T1595.002]
+
+- id: 31151
+  level: 10
+  if_matched_sid: 31101
+  frequency: 12
+  timeframe: 90
+  same_field: [srcip]
+  description: 'Multiple web server 400 errors from same source (likely scan)'
+  groups: [web_scan, recon]
+  mitre: [T1595.002]
+  active_response: {command: firewall-drop, timeout: 600, field: srcip}
+
+- id: 31152
+  level: 10
+  if_matched_group: attack
+  frequency: 4
+  timeframe: 120
+  same_field: [srcip]
+  description: 'Multiple web attack attempts from same source'
+  groups: [attack]
+  mitre: [T1190]
+  active_response: {command: firewall-drop, timeout: 1800, field: srcip}
+
+# ---------------- kernel firewall ----------------
+- id: 4100
+  level: 0
+  decoded_as: firewall
+  description: Firewall rules grouped
+  groups: [firewall]
+
+- id: 4101
+  if_sid: [4100]
+  level: 4
+  field: {action: '^BLOCK$'}
+  description: 'Firewall drop event'
+  groups: [firewall_drop]
+
+- id: 4151
+  level: 10
+  if_matched_sid: 4101
+  frequency: 15
+  timeframe: 60
+  same_field: [srcip]
+  description: 'Multiple firewall drops from same source (possible port scan)'
+  groups: [recon]
+  mitre: [T1046]
+
+# ---------------- auditd ----------------
+- id: 80700
+  level: 0
+  decoded_as: auditd
+  description: Audit messages grouped
+  groups: [audit]
+
+- id: 80790
+  if_sid: [80700]
+  level: 3
+  field: {audit_type: '^EXECVE$'}
+  description: 'Audit: command executed'
+  groups: [audit_command]
+
+- id: 80792
+  if_sid: [80790]
+  level: 12
+  match: '(?i)(/dev/tcp/|nc(at)? .*-e|bash -i|python[0-9.]* -c .*socket|socat .*exec|mkfifo)'
+  description: 'Audit: possible reverse shell executed'
+  mitre: [T1059.004]
+
+- id: 80784
+  if_sid: [80700]
+  level: 8
+  field: {audit_key: '^(identity|passwd_changes|sudoers)$'}
+  description: 'Audit: watched identity file accessed'
+  mitre: [T1003.008]
+
+# ---------------- systemd / cron / kernel ----------------
+- id: 40700
+  level: 0
+  decoded_as: systemd
+  description: Systemd messages grouped
+  groups: [systemd]
+
+- id: 40703
+  if_sid: [40700]
+  level: 6
+  match: 'Failed with result|failed'
+  description: 'Systemd: Service has entered a failed state'
+  mitre: [T1489]
+
+- id: 40704
+  if_sid: [40700]
+  level: 10
+  match: '(?i)Stopp(ed|ing) .*(auditd|warden|rsyslog|ufw|firewalld|fail2ban|apparmor)'
+  description: 'Security service stopped'
+  mitre: [T1562.001]
+
+- id: 2830
+  level: 0
+  decoded_as: cron
+  description: Crontab messages grouped
+  groups: [cron]
+
+- id: 2832
+  if_sid: [2830]
+  level: 10
+  match: '(?i)CMD \(.*(curl|wget).*\|.*sh|/tmp/|/dev/shm/|base64'
+  description: 'Suspicious command executed by cron'
+  mitre: [T1053.003, T1105]
+
+- id: 5100
+  level: 0
+  decoded_as: kernel
+  description: Kernel messages grouped
+  groups: [kernel]
+
+- id: 5101
+  if_sid: [5100]
+  level: 4
+  match: 'segfault'
+  description: 'Kernel: process segmentation fault'
+
+- id: 5102
+  if_sid: [5100]
+  level: 8
+  match: 'Out of memory'
+  description: 'Kernel: out of memory, process killed'
+  mitre: [T1499]
+
+- id: 5104
+  if_sid: [5100]
+  level: 8
+  match: 'promiscuous mode'
+  description: 'Interface entered promiscuous mode (possible sniffer)'
+
+# ---------------- log tampering (any source) ----------------
+- id: 591
+  level: 12
+  type: log
+  match: '(?i)(rm -rf? /var/log|history -c|unset HISTFILE|shred .*/var/log|> */var/log/(auth|secure|syslog))'
+  description: 'Possible log tampering / anti-forensics'
+  mitre: [T1070.002]
+
+# ---------------- Suricata EVE JSON ----------------
+- id: 86600
+  level: 0
+  decoded_as: json
+  field: {event_type: '^alert$'}
+  description: Suricata alert messages
+  groups: [ids, suricata]
+
+- id: 86601
+  if_sid: [86600]
+  level: 12
+  field: {alert.severity: '^1$'}
+  description: 'Suricata: high severity IDS alert'
+
+- id: 86602
+  if_sid: [86600]
+  level: 8
+  field: {alert.severity: '^2$'}
+  description: 'Suricata: medium severity IDS alert'
+
+- id: 86603
+  if_sid: [86600]
+  level: 5
+  field: {alert.severity: '^[3-9]$'}
+  description: 'Suricata: low severity IDS alert'

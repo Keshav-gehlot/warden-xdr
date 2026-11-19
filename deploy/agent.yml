@@ -1,0 +1,9 @@
+# /etc/warden-agent/agent.yml — bootstrap config. Everything else (log files,
+# FIM paths, SCA policies, intervals) is pushed centrally by the manager group.
+manager: "warden.example.internal:1514"
+enrollment_password: "change-me"
+group: default
+# name: web-01                  # defaults to the hostname
+# manager_fingerprint: ""       # SHA-256 of the manager cert; empty = trust on first use
+state_dir: /var/lib/warden-agent
+control_interval: 10

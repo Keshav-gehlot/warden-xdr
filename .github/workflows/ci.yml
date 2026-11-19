@@ -1,0 +1,26 @@
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+      - name: Vet & test
+        run: make test
+      - name: Build manager
+        run: make manager
+      - name: Cross-compile agents
+        run: make agents
+      - uses: actions/upload-artifact@v4
+        with:
+          name: warden-binaries
+          path: |
+            bin/
+            dist/

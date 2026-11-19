@@ -1,0 +1,42 @@
+# Web access logs (combined format, nginx/apache), kernel firewall logs, auditd.
+
+- name: web-accesslog
+  prematch: '^\S+ \S+ \S+ \[[^\]]+\] "'
+  regex:
+    - '^(?P<srcip>\S+) \S+ (?P<srcuser>\S+) \[[^\]]+\] "(?P<method>[A-Z]+) (?P<url>\S+)[^"]*" (?P<status>\d{3}) (?P<bytes>\d+|-)(?: "(?P<referer>[^"]*)" "(?P<user_agent>[^"]*)")?'
+
+- name: firewall
+  program: ^kernel$
+  prematch: '(\[UFW (BLOCK|ALLOW|AUDIT)\]|IN=\S* OUT=)'
+  regex:
+    - '\[UFW (?P<action>BLOCK|ALLOW|AUDIT)\]'
+    - 'SRC=(?P<srcip>\S+) DST=(?P<dstip>\S+)'
+    - 'PROTO=(?P<protocol>\S+)'
+    - 'SPT=(?P<srcport>\d+) DPT=(?P<dstport>\d+)'
+
+- name: auditd
+  prematch: '^type=[A-Z_]+ msg=audit\('
+  regex:
+    - '^type=(?P<audit_type>[A-Z_]+) msg=audit\((?P<audit_id>[\d.:]+)\)'
+    - ' exe="(?P<exe>[^"]+)"'
+    - ' auid=(?P<auid>\d+)'
+    - ' key="(?P<audit_key>[^"]+)"'
+    - ' a0="?(?P<a0>[^" ]+)'
+
+- name: systemd
+  program: ^systemd$
+  regex:
+    - '^(?P<unit>\S+\.service): (?P<state>Failed with result|Main process exited|Succeeded|Deactivated successfully)'
+    - '^(?:Started|Stopped|Starting|Stopping) (?P<description>.+?)\.?$'
+
+- name: cron
+  program: ^(CRON|crond|cron)$
+  regex:
+    - '\((?P<dstuser>[^)]+)\) CMD \((?P<command>.*)\)$'
+
+- name: kernel
+  program: ^kernel$
+  regex:
+    - '(?P<process>\S+)\[(?P<proc_pid>\d+)\]: segfault'
+    - 'Out of memory: Killed process (?P<proc_pid>\d+) \((?P<process>[^)]+)\)'
+    - 'device (?P<interface>\S+) entered promiscuous mode'

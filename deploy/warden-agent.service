@@ -1,0 +1,15 @@
+[Unit]
+Description=Warden XDR agent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+# Runs as root: it must read protected logs, hash system files and apply firewall rules.
+ExecStart=/usr/local/bin/warden-agent -c /etc/warden-agent/agent.yml
+Restart=always
+RestartSec=5
+Nice=10
+IOSchedulingClass=idle
+
+[Install]
+WantedBy=multi-user.target

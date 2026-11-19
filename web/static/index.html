@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Warden XDR</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 2 4 7v8c0 7.5 5.1 13.4 12 15 6.9-1.6 12-7.5 12-15V7z' fill='%2314b8a6'/%3E%3Cpath d='M10 12l3 9 3-6 3 6 3-9' stroke='%230b0f14' stroke-width='2.4' fill='none' stroke-linejoin='round' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="login" class="login hidden">
+  <form id="login-form" class="login-card">
+    <div class="brand big"><span class="logo"></span><span>warden<b>xdr</b></span></div>
+    <p class="muted">Sign in to the security console</p>
+    <label>Username<input name="username" value="admin" autocomplete="username" required></label>
+    <label>Password<input name="password" type="password" autocomplete="current-password" required autofocus></label>
+    <button class="btn primary" type="submit">Sign in</button>
+    <p id="login-error" class="error"></p>
+  </form>
+</div>
+
+<div id="app" class="app hidden">
+  <aside class="sidebar">
+    <div class="brand"><span class="logo"></span><span>warden<b>xdr</b></span></div>
+    <nav id="nav">
+      <a href="#/overview" data-route="overview"><i data-icon="grid"></i>Overview</a>
+      <a href="#/alerts" data-route="alerts"><i data-icon="bell"></i>Threat hunting</a>
+      <a href="#/agents" data-route="agents"><i data-icon="server"></i>Endpoints</a>
+      <div class="nav-label">Modules</div>
+      <a href="#/fim" data-route="fim"><i data-icon="file"></i>File integrity</a>
+      <a href="#/vulns" data-route="vulns"><i data-icon="bug"></i>Vulnerabilities</a>
+      <a href="#/sca" data-route="sca"><i data-icon="check"></i>Configuration</a>
+      <a href="#/mitre" data-route="mitre"><i data-icon="target"></i>MITRE ATT&amp;CK</a>
+      <a href="#/response" data-route="response"><i data-icon="zap"></i>Active response</a>
+      <div class="nav-label">Management</div>
+      <a href="#/rules" data-route="rules"><i data-icon="code"></i>Rules &amp; logtest</a>
+      <a href="#/groups" data-route="groups"><i data-icon="layers"></i>Groups</a>
+      <a href="#/manager" data-route="manager"><i data-icon="cpu"></i>Manager</a>
+    </nav>
+    <div class="sidebar-foot">
+      <span id="live-dot" class="dot off"></span><span id="live-text" class="muted">offline</span>
+      <button id="logout" class="link">Sign out</button>
+    </div>
+  </aside>
+  <main>
+    <header class="topbar">
+      <h1 id="page-title">Overview</h1>
+      <div id="page-actions" class="actions"></div>
+    </header>
+    <section id="view" class="view"></section>
+  </main>
+</div>
+<div id="drawer" class="drawer hidden"><div class="drawer-panel"><button class="drawer-close" aria-label="Close">×</button><div id="drawer-body"></div></div></div>
+<div id="toast" class="toast hidden"></div>
+<script src="app.js"></script>
+</body>
+</html>

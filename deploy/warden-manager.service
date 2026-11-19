@@ -1,0 +1,20 @@
+[Unit]
+Description=Warden XDR manager
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=warden
+Group=warden
+ExecStart=/usr/local/bin/warden-manager -c /etc/warden/manager.yml
+Restart=on-failure
+RestartSec=5
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/warden /etc/warden/ruleset/shared
+
+[Install]
+WantedBy=multi-user.target

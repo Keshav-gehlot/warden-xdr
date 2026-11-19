@@ -1,0 +1,38 @@
+# warden-manager configuration. Relative paths are resolved from this file.
+
+listen_agents: ":1514"      # agent service (HTTPS): enrollment, events, heartbeats
+listen_api: ":55000"        # dashboard + REST API (HTTPS)
+listen_syslog: ":514"       # UDP syslog for agentless devices; "" to disable
+
+data_dir: ../data           # SQLite DB, TLS cert, generated secrets
+ruleset_dir: ../ruleset     # decoders/, rules/, sca/, shared/<group>/agent.yml
+
+# Agents must present this to enroll. Leave empty to auto-generate one
+# (written to <data_dir>/enrollment-password.txt). Env: WARDEN_ENROLLMENT_PASSWORD
+enrollment_password: ""
+
+alert_level: 3              # events matching rules below this level are not stored as alerts
+archive_events: false       # store every raw event (needs much more disk)
+
+retention:
+  alerts_days: 90
+  events_days: 7
+
+active_response:
+  enabled: true
+  whitelist:                # never block these (IPs or CIDRs)
+    - 127.0.0.1
+    - "::1"
+    # - 10.0.0.0/8
+
+vulnerability_detector:
+  interval_hours: 6
+  feeds:
+    - ../feeds/demo-feed.json   # small offline feed for demos; replace with OSV sync
+  osv_auto_sync: false          # true = download OSV advisories for every ecosystem your agents run
+  osv_ecosystems: []            # e.g. ["Debian:12", "Ubuntu:22.04:LTS"]
+
+webhooks: []
+#  - url: https://hooks.slack.com/services/XXX/YYY/ZZZ
+#    format: slack
+#    min_level: 10

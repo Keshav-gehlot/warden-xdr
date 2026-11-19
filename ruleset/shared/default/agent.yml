@@ -1,0 +1,52 @@
+# Centralised configuration for agents in the "default" group.
+# Edit here (or in the dashboard → Groups); agents pick up changes on their
+# next heartbeat (~10s) — no restart needed.
+
+logcollector:
+  - {path: /var/log/auth.log, format: syslog}
+  - {path: /var/log/secure, format: syslog}
+  - {path: /var/log/syslog, format: syslog}
+  - {path: /var/log/messages, format: syslog}
+  - {path: /var/log/kern.log, format: syslog}
+  - {path: /var/log/audit/audit.log, format: audit}
+  - {path: /var/log/nginx/access.log, format: apache}
+  - {path: /var/log/apache2/access.log, format: apache}
+  - {path: /var/log/suricata/eve.json, format: json}
+
+commands:
+  - alias: listening-ports
+    command: "ss -tulnH 2>/dev/null | awk '{print $1, $5}' | sort -u"
+    interval: 360
+  - alias: last-logins
+    command: "last -n 5 -w 2>/dev/null | head -5"
+    interval: 3600
+
+syscheck:
+  interval: 300          # seconds between full scans
+  max_file_mb: 50
+  directories:
+    - /etc
+    - /usr/bin
+    - /usr/sbin
+    - /bin
+    - /sbin
+    - /root/.ssh
+  ignore:
+    - '^/etc/mtab$'
+    - '^/etc/(adjtime|resolv\.conf|hosts\.deny)$'
+    - '\.swp$'
+    - '^/etc/ssl/certs/'
+
+syscollector:
+  interval: 3600
+
+sca:
+  interval: 43200
+  policies:
+    - cis_linux_baseline.yml
+
+rootcheck:
+  interval: 43200
+
+active_response:
+  enabled: true
