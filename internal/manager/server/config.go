@@ -22,6 +22,8 @@ type Config struct {
 	EnrollPass   string `yaml:"enrollment_password"`
 	AlertLevel   int    `yaml:"alert_level"`
 	Archive      bool   `yaml:"archive_events"`
+	SinglePort   string `yaml:"single_port"` // serve agents + API on one listener (PaaS such as Render)
+	TLSOff       bool   `yaml:"tls_off"`     // plain HTTP: TLS is terminated by a trusted reverse proxy
 	TLSCert      string `yaml:"tls_cert"`
 	TLSKey       string `yaml:"tls_key"`
 	Retention    struct {
@@ -81,6 +83,18 @@ func LoadConfig(path string) (*Config, error) {
 	}
 	if v := os.Getenv("WARDEN_ENROLLMENT_PASSWORD"); v != "" {
 		c.EnrollPass = v
+	}
+	if v := os.Getenv("WARDEN_SINGLE_PORT"); v != "" {
+		c.SinglePort = v
+	}
+	if os.Getenv("WARDEN_TLS") == "off" {
+		c.TLSOff = true
+	}
+	if os.Getenv("WARDEN_SYSLOG") == "off" {
+		c.ListenSyslog = ""
+	}
+	if v := os.Getenv("WARDEN_DATA_DIR"); v != "" {
+		c.DataDir = v
 	}
 	return c, nil
 }

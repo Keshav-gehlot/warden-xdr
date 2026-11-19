@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/Keshav-gehlot/warden-xdr/internal/manager/store"
@@ -46,7 +47,19 @@ func readBody(r *http.Request) ([]byte, error) {
 	return b, nil
 }
 
+// trustProxy is set when TLS is terminated by a reverse proxy; only then are
+// X-Forwarded-For headers believed.
+var trustProxy bool
+
 func clientIP(r *http.Request) string {
+	if trustProxy {
+		if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+			first, _, _ := strings.Cut(xff, ",")
+			if ip := net.ParseIP(strings.TrimSpace(first)); ip != nil {
+				return ip.String()
+			}
+		}
+	}
 	h, _, _ := net.SplitHostPort(r.RemoteAddr)
 	return h
 }

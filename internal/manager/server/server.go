@@ -72,6 +72,7 @@ func New(cfg *Config, web fs.FS) (*Server, error) {
 	s := &Server{cfg: cfg, st: st, eng: engine.New(), web: web, queue: make(chan queued, 20000), started: time.Now(),
 		sessions: map[string]time.Time{}, subs: map[chan []byte]struct{}{}, arActive: map[string]time.Time{},
 		lastCmd: map[string]string{}, lastStatus: map[string]string{}}
+	trustProxy = cfg.TLSOff
 	if err := s.reloadRules(); err != nil {
 		return nil, err
 	}
@@ -132,13 +133,33 @@ func (s *Server) Run(ctx context.Context) error {
 		go s.syslogLoop(ctx)
 	}
 	tlsCfg := &tls.Config{Certificates: []tls.Certificate{s.cert}, MinVersion: tls.VersionTLS12}
-	agentSrv := &http.Server{Addr: s.cfg.ListenAgents, Handler: s.agentMux(), TLSConfig: tlsCfg,
-		ReadHeaderTimeout: 10 * time.Second, ReadTimeout: 60 * time.Second, WriteTimeout: 60 * time.Second}
-	apiSrv := &http.Server{Addr: s.cfg.ListenAPI, Handler: s.apiMux(), TLSConfig: tlsCfg, ReadHeaderTimeout: 10 * time.Second}
-	errc := make(chan error, 2)
-	go func() { errc <- agentSrv.ListenAndServeTLS("", "") }()
-	go func() { errc <- apiSrv.ListenAndServeTLS("", "") }()
-	log.Printf("agent service on %s, dashboard/API on https://%s, cert fingerprint %s", s.cfg.ListenAgents, s.cfg.ListenAPI, s.certFP)
+	var servers []*http.Server
+	if s.cfg.SinglePort != "" {
+		mux := http.NewServeMux()
+		mux.Handle("/v1/", s.agentMux())
+		mux.Handle("/", s.apiMux())
+		servers = append(servers, &http.Server{Addr: s.cfg.SinglePort, Handler: mux, TLSConfig: tlsCfg, ReadHeaderTimeout: 10 * time.Second})
+	} else {
+		servers = append(servers,
+			&http.Server{Addr: s.cfg.ListenAgents, Handler: s.agentMux(), TLSConfig: tlsCfg,
+				ReadHeaderTimeout: 10 * time.Second, ReadTimeout: 60 * time.Second, WriteTimeout: 60 * time.Second},
+			&http.Server{Addr: s.cfg.ListenAPI, Handler: s.apiMux(), TLSConfig: tlsCfg, ReadHeaderTimeout: 10 * time.Second})
+	}
+	errc := make(chan error, len(servers))
+	for _, srv := range servers {
+		go func(srv *http.Server) {
+			if s.cfg.TLSOff {
+				errc <- srv.ListenAndServe()
+			} else {
+				errc <- srv.ListenAndServeTLS("", "")
+			}
+		}(srv)
+	}
+	if s.cfg.SinglePort != "" {
+		log.Printf("agents + dashboard on %s (tls=%v), cert fingerprint %s", s.cfg.SinglePort, !s.cfg.TLSOff, s.certFP)
+	} else {
+		log.Printf("agent service on %s, dashboard/API on https://%s, cert fingerprint %s", s.cfg.ListenAgents, s.cfg.ListenAPI, s.certFP)
+	}
 	select {
 	case <-ctx.Done():
 	case err := <-errc:
@@ -146,8 +167,9 @@ func (s *Server) Run(ctx context.Context) error {
 	}
 	sctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	agentSrv.Shutdown(sctx)
-	apiSrv.Shutdown(sctx)
+	for _, srv := range servers {
+		srv.Shutdown(sctx)
+	}
 	return s.st.DB.Close()
 }
 

@@ -92,6 +92,19 @@ sudo WARDEN_MANAGER=127.0.0.1:1514 \
 
 Open `https://localhost:55000` and sign in as `admin` with the password from `data/admin-password.txt`.
 
+### Option C: Render (one click from this repo)
+
+The manager can run on a PaaS that gives you a single HTTPS port. Set these environment variables on a Docker web service built from `deploy/Dockerfile.manager`:
+
+| Variable | Value |
+|---|---|
+| `WARDEN_SINGLE_PORT` | `:10000` (agents and dashboard share one port) |
+| `WARDEN_TLS` | `off` (Render terminates TLS) |
+| `WARDEN_SYSLOG` | `off` (no UDP on Render) |
+| `WARDEN_ADMIN_PASSWORD`, `WARDEN_ENROLLMENT_PASSWORD` | your secrets |
+
+Agents then connect with `WARDEN_MANAGER=<service>.onrender.com:443` and `WARDEN_MANAGER_TLS=system`, which verifies Render's public certificate instead of pinning it. Without a persistent disk the database resets on each deploy; agents re-enroll automatically, but alert history is lost. Attach a disk at `/var/lib/warden` to keep it.
+
 ### Installing agents on servers
 
 ```bash

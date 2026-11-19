@@ -29,10 +29,23 @@ type Client struct {
 	seen        string // fingerprint presented in the last handshake
 	agentID     string
 	key         string
+	system      bool // chain verified by OS trust store; no pinning
 }
 
-func NewClient(manager, fingerprint string) *Client {
-	c := &Client{base: "https://" + strings.TrimPrefix(manager, "https://"), fingerprint: strings.ToLower(strings.ReplaceAll(fingerprint, ":", ""))}
+// NewClient creates a manager client. tlsMode "pin" (default) pins the
+// certificate fingerprint; "system" verifies the certificate chain against the
+// OS trust store instead (use behind a public proxy such as Render, whose
+// certificates rotate).
+func NewClient(manager, fingerprint, tlsMode string) *Client {
+	host := strings.TrimPrefix(manager, "https://")
+	c := &Client{base: "https://" + host, fingerprint: strings.ToLower(strings.ReplaceAll(fingerprint, ":", ""))}
+	if tlsMode == "system" {
+		c.fingerprint = ""
+		c.http = &http.Client{Timeout: 60 * time.Second, Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{MinVersion: tls.VersionTLS12}, MaxIdleConns: 4, IdleConnTimeout: 90 * time.Second}}
+		c.system = true
+		return c
+	}
 	tr := &http.Transport{
 		TLSClientConfig: &tls.Config{
 			MinVersion:         tls.VersionTLS12,
@@ -79,7 +92,7 @@ func (c *Client) Enroll(req proto.EnrollRequest) (*proto.EnrollResponse, error) 
 	if err := json.Unmarshal(body, &out); err != nil {
 		return nil, err
 	}
-	if c.fingerprint == "" {
+	if c.fingerprint == "" && !c.system {
 		c.fingerprint = c.seen // TOFU: pin what we saw during successful enrollment
 	}
 	return &out, nil

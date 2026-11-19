@@ -26,6 +26,7 @@ type LocalConfig struct {
 	Group       string `yaml:"group"`
 	StateDir    string `yaml:"state_dir"`
 	Fingerprint string `yaml:"manager_fingerprint"` // optional explicit certificate pin
+	TLSMode     string `yaml:"manager_tls"`         // "pin" (default) or "system" (public CA, e.g. Render)
 	ControlSec  int    `yaml:"control_interval"`    // heartbeat interval (default 10s)
 }
 
@@ -51,6 +52,7 @@ func LoadLocalConfig(path string) (*LocalConfig, error) {
 	env("WARDEN_GROUP", &c.Group)
 	env("WARDEN_STATE_DIR", &c.StateDir)
 	env("WARDEN_MANAGER_FINGERPRINT", &c.Fingerprint)
+	env("WARDEN_MANAGER_TLS", &c.TLSMode)
 	if c.Name == "" {
 		c.Name, _ = os.Hostname()
 	}
@@ -108,7 +110,7 @@ func (a *Agent) saveState() error {
 
 func (a *Agent) enroll() error {
 	fp := a.lc.Fingerprint
-	a.client = NewClient(a.lc.Manager, fp)
+	a.client = NewClient(a.lc.Manager, fp, a.lc.TLSMode)
 	resp, err := a.client.Enroll(proto.EnrollRequest{Name: a.lc.Name, Password: a.lc.EnrollPass, Group: a.lc.Group,
 		OS: OSInfo(), Version: proto.Version})
 	if err != nil {
@@ -157,7 +159,7 @@ func defaultConfig() *proto.AgentConfig {
 // Run enrolls if needed, then runs every module until ctx is cancelled.
 func (a *Agent) Run(ctx context.Context) error {
 	if a.loadState() {
-		a.client = NewClient(a.lc.Manager, a.st.Fingerprint)
+		a.client = NewClient(a.lc.Manager, a.st.Fingerprint, a.lc.TLSMode)
 	} else {
 		for {
 			err := a.enroll()
@@ -260,8 +262,12 @@ func (a *Agent) control(ctx context.Context) {
 	if err := a.client.Post("/v1/control", proto.ControlRequest{Version: proto.Version, ConfigHash: hash, OS: OSInfo()}, &resp); err != nil {
 		log.Printf("control: %v", err)
 		if errors.Is(err, ErrUnauthorized) {
-			log.Printf("agent key rejected; removing local key so the agent re-enrolls on restart")
+			log.Printf("agent key rejected by manager; re-enrolling")
 			os.Remove(a.statePath())
+			select {
+			case a.restart <- struct{}{}:
+			default:
+			}
 		}
 		return
 	}
